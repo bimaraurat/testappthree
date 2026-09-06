@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'bingo_cell.dart';
@@ -11,6 +12,8 @@ class GameState extends ChangeNotifier {
   bool _hasWon = false;
   final List<String> _winningPatterns = [];
   final Random _random = Random();
+  Timer? _autoCallTimer;
+  bool _isAutoCalling = false;
 
   GameState() {
     startNewGame();
@@ -25,6 +28,7 @@ class GameState extends ChangeNotifier {
   bool get hasWon => _hasWon;
   List<String> get winningPatterns => List.unmodifiable(_winningPatterns);
   bool get isPoolExhausted => _calledNumbers.length >= 75 && !_hasWon;
+  bool get isAutoCalling => _isAutoCalling;
 
   /// Get column name and number formatted, e.g. "B-12"
   String? get formattedLastCalledNumber {
@@ -35,6 +39,7 @@ class GameState extends ChangeNotifier {
 
   /// Start or reset to a fresh game.
   void startNewGame() {
+    stopAutoCall();
     _board = BingoGenerator.generateBoard();
     _calledNumbers.clear();
     _lastCalledNumber = null;
@@ -48,6 +53,7 @@ class GameState extends ChangeNotifier {
   /// Returns true if a number was called, false if game is over or all numbers called.
   bool callNextNumber() {
     if (_isGameOver || _calledNumbers.length >= 75) {
+      stopAutoCall();
       return false;
     }
 
@@ -58,6 +64,7 @@ class GameState extends ChangeNotifier {
 
     if (available.isEmpty) {
       _isGameOver = true;
+      stopAutoCall();
       notifyListeners();
       return false;
     }
@@ -70,10 +77,51 @@ class GameState extends ChangeNotifier {
     // If pool is exhausted without Bingo, end game
     if (_calledNumbers.length >= 75 && !_hasWon) {
       _isGameOver = true;
+      stopAutoCall();
     }
 
     notifyListeners();
     return true;
+  }
+
+  /// Toggle auto-caller on/off with specified interval.
+  void toggleAutoCall({Duration interval = const Duration(seconds: 3)}) {
+    if (_isAutoCalling) {
+      stopAutoCall();
+    } else {
+      startAutoCall(interval: interval);
+    }
+  }
+
+  /// Start automatic number calling timer.
+  void startAutoCall({Duration interval = const Duration(seconds: 3)}) {
+    if (_isGameOver || _calledNumbers.length >= 75) return;
+    stopAutoCall();
+    _isAutoCalling = true;
+    notifyListeners();
+
+    _autoCallTimer = Timer.periodic(interval, (timer) {
+      final success = callNextNumber();
+      if (!success || _isGameOver) {
+        stopAutoCall();
+      }
+    });
+  }
+
+  /// Stop automatic number calling.
+  void stopAutoCall() {
+    _autoCallTimer?.cancel();
+    _autoCallTimer = null;
+    if (_isAutoCalling) {
+      _isAutoCalling = false;
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoCallTimer?.cancel();
+    super.dispose();
   }
 
   /// Attempt to mark a cell at (row, col).

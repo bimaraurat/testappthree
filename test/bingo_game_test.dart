@@ -216,4 +216,18 @@ void main() {
       }
     });
   });
+
+  group('Auto-Caller Tests', () {
+    test('Starts and stops auto calling state', () {
+      final gameState = GameState();
+      expect(gameState.isAutoCalling, isFalse);
+
+      gameState.startAutoCall(interval: const Duration(milliseconds: 100));
+      expect(gameState.isAutoCalling, isTrue);
+
+      gameState.stopAutoCall();
+      expect(gameState.isAutoCalling, isFalse);
+      gameState.dispose();
+    });
+  });
 }
